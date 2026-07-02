@@ -2,107 +2,79 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Wolft3m IPTV Premium</title>
+    <title>Wolft3m IPTV Pro</title>
     <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap" rel="stylesheet">
     <style>
-        :root { --primary: #7c3aed; --bg: #0b0e14; --panel: #161b22; --text: #e2e8f0; }
-        body { margin: 0; font-family: 'Poppins', sans-serif; background: var(--bg); color: var(--text); display: flex; height: 100vh; overflow: hidden; }
-        .sidebar { width: 350px; background: var(--panel); border-right: 1px solid #30363d; display: flex; flex-direction: column; }
-        .search-area { padding: 15px; border-bottom: 1px solid #30363d; }
-        #buscador { width: 100%; padding: 10px; background: #0f1117; border: 1px solid var(--primary); color: white; border-radius: 5px; box-sizing: border-box; }
-        .scroll-area { flex: 1; overflow-y: auto; }
-        .item { padding: 12px 20px; cursor: pointer; transition: 0.2s; border-bottom: 1px solid #21262d; font-size: 0.9em; }
-        .item:hover { background: #1f242e; color: var(--primary); }
-        .player-area { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; background: radial-gradient(circle, #1a1e2e 0%, #0b0e14 100%); }
-        #reproduciendo-titulo { margin-bottom: 15px; font-size: 1.4em; font-weight: 600; color: var(--primary); text-shadow: 0 0 10px rgba(124, 58, 237, 0.5); }
-        video { width: 90%; max-width: 950px; border-radius: 12px; border: 2px solid var(--primary); box-shadow: 0 0 30px rgba(124, 58, 237, 0.3); }
-        .account-info { padding: 15px; font-size: 0.75em; background: #0f1117; border-top: 1px solid #30363d; color: #888; }
-        .footer-brand { padding: 10px; text-align: center; font-size: 0.8em; font-weight: 600; color: var(--primary); border-top: 1px solid #30363d; }
+        body { margin: 0; background: #0b0e14; color: white; display: flex; height: 100vh; font-family: sans-serif; }
+        .sidebar { width: 350px; background: #161b22; overflow-y: auto; padding: 10px; }
+        .item { padding: 10px; border-bottom: 1px solid #333; cursor: pointer; }
+        .item:hover { background: #252a33; }
+        .player-area { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+        video { width: 80%; border-radius: 10px; }
     </style>
 </head>
 <body>
-
-<div class="sidebar">
-    <div style="padding: 20px; font-weight: 600; color: var(--primary);">Wolft3m IPTV</div>
-    <div class="search-area">
-        <input type="text" id="buscador" placeholder="🔍 Buscar canal..." onkeyup="filtrarCanales()">
+    <div class="sidebar" id="menu-container">Cargando canales...</div>
+    <div class="player-area">
+        <h2 id="titulo">Selecciona un canal</h2>
+        <video id="video" controls autoplay></video>
     </div>
-    <div class="scroll-area" id="menu-container">Cargando datos...</div>
-    <div class="account-info" id="acc-details">Esperando conexión...</div>
-    <div class="footer-brand">By Wolft3m | @Wolft3m</div>
-</div>
 
-<div class="player-area">
-    <div id="reproduciendo-titulo">Selecciona un canal</div>
-    <video id="video" controls autoplay></video>
-</div>
+    <script>
+        const params = new URLSearchParams(window.location.search);
+        const server = params.get('server'); // Ejemplo: http://jametv.lat:8080
+        const user = params.get('user');
+        const pass = params.get('pass');
+        // Proxy para evitar bloqueo CORS
+        const proxy = "https://corsproxy.io/?"; 
 
-<script>
-    const params = new URLSearchParams(window.location.search);
-    const serverUrl = params.get('server');
-    const username = params.get('user');
-    const password = params.get('pass');
-    
-    let info_cuenta = {};
-    const container = document.getElementById('menu-container');
-
-    window.onload = async () => {
-        if (serverUrl && username && password) {
-            document.getElementById('acc-details').innerHTML = `Usuario: <b>${username}</b>`;
-            await cargarCategorias();
-        } else {
-            container.innerHTML = "Error: Enlace inválido o incompleto.";
+        async function init() {
+            const api = `${proxy}${server}/player_api.php?username=${user}&password=${pass}&action=get_live_categories`;
+            try {
+                const res = await fetch(api);
+                const cats = await res.json();
+                renderCats(cats);
+            } catch(e) { document.getElementById('menu-container').innerText = "Error de conexión: " + e; }
         }
-    }
 
-    async function cargarCategorias() {
-        const url = `${serverUrl}/player_api.php?username=${username}&password=${password}&action=get_live_categories`;
-        try {
-            const res = await fetch(url);
-            const categorias = await res.json();
-            container.innerHTML = '';
-            categorias.forEach(cat => {
+        function renderCats(cats) {
+            const menu = document.getElementById('menu-container');
+            menu.innerHTML = "";
+            cats.forEach(c => {
                 const div = document.createElement('div');
                 div.className = 'item';
-                div.innerText = "📁 " + cat.category_name;
-                div.onclick = () => cargarCanales(cat.category_id);
-                container.appendChild(div);
+                div.innerText = c.category_name;
+                div.onclick = () => loadChannels(c.category_id);
+                menu.appendChild(div);
             });
-        } catch(e) { container.innerHTML = "Error cargando categorías."; }
-    }
+        }
 
-    async function cargarCanales(catId) {
-        const url = `${serverUrl}/player_api.php?username=${username}&password=${password}&action=get_live_streams&category_id=${catId}`;
-        const res = await fetch(url);
-        const data = await res.json();
-        
-        container.innerHTML = `<div class="item" style="color:var(--primary)" onclick="cargarCategorias()">⬅ Volver a Categorías</div>`;
-        data.forEach(ch => {
-            const div = document.createElement('div');
-            div.className = 'item';
-            div.innerText = "📺 " + ch.name;
-            div.onclick = () => reproducir(ch.stream_id, ch.name);
-            container.appendChild(div);
-        });
-    }
+        async function loadChannels(id) {
+            const api = `${proxy}${server}/player_api.php?username=${user}&password=${pass}&action=get_live_streams&category_id=${id}`;
+            const res = await fetch(api);
+            const chs = await res.json();
+            const menu = document.getElementById('menu-container');
+            menu.innerHTML = `<div class="item" onclick="location.reload()">⬅ Volver</div>`;
+            chs.forEach(ch => {
+                const div = document.createElement('div');
+                div.className = 'item';
+                div.innerText = ch.name;
+                div.onclick = () => play(ch.stream_id, ch.name);
+                menu.appendChild(div);
+            });
+        }
 
-    function reproducir(id, nombre) {
-        document.getElementById('reproduciendo-titulo').innerText = "Reproduciendo: " + nombre;
-        const url = `${serverUrl}/live/${username}/${password}/${id}.m3u8`;
-        const video = document.getElementById('video');
-        const hls = new Hls();
-        hls.loadSource(url);
-        hls.attachMedia(video);
-        video.play();
-    }
+        function play(id, name) {
+            document.getElementById('titulo').innerText = name;
+            const video = document.getElementById('video');
+            const source = `${server}/live/${user}/${pass}/${id}.m3u8`;
+            const hls = new Hls();
+            hls.loadSource(source);
+            hls.attachMedia(video);
+            video.play();
+        }
 
-    function filtrarCanales() {
-        let filter = document.getElementById('buscador').value.toUpperCase();
-        document.querySelectorAll('.item').forEach(item => {
-            item.style.display = item.innerText.toUpperCase().indexOf(filter) > -1 ? "" : "none";
-        });
-    }
-</script>
+        init();
+    </script>
 </body>
 </html>
